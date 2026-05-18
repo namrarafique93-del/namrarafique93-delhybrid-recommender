@@ -53,7 +53,20 @@ python scripts/seed_mock_data.py --users 50 --purchases 2000  # Custom amounts
 python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 6. Open the App
+### 6. Run with Docker
+Build the container image from the repository root:
+```bash
+docker build -t hybrid-recommender .
+```
+
+Run the FastAPI app on port 8000:
+```bash
+docker run --env-file .env -p 8000:8000 hybrid-recommender
+```
+
+The API will be available at [http://localhost:8000](http://localhost:8000).
+
+### 7. Open the App
 Navigate to: [http://localhost:8000](http://localhost:8000)
 
 ## Architecture
@@ -75,6 +88,8 @@ hybrid-recommender/
 ├── data_adapter.py      # CSV/JSON schema adapter
 ├── dataset_manager.py   # Multi-dataset manager
 ├── db.py                # Supabase client
+├── Dockerfile           # FastAPI container image
+├── .dockerignore        # Docker build exclusions
 ├── .env                 # Credentials (git-ignored)
 └── requirements.txt
 ```
