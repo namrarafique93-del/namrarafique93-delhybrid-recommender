@@ -123,6 +123,19 @@ function categoryIcon(cat) {
     return '📦';
 }
 
+// ── Meta Tags ───────────────────────────────────────────────────────
+// ── Meta Tags ───────────────────────────────────────────────────────
+function setPageMeta(title, description) {
+    const fullTitle = title ? `${title} | HybridRec` : 'HybridRec — Smart Recommendations';
+    document.title = fullTitle;
+    const descTag = document.querySelector('meta[name="description"]');
+    if (descTag) descTag.content = description;
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.content = fullTitle;
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) ogDesc.content = description;
+}
+
 // ── API Helpers ─────────────────────────────────────────────────────
 const API = {
     async get(url) {
@@ -347,6 +360,13 @@ function handleSearchKeydown(e) {
 // ── Product Loading ─────────────────────────────────────────────────
 async function loadProducts(append = false) {
     if (!append) {
+        setPageMeta(
+            'All Products', 
+            'Browse all products on HybridRec — personalised recommendations just for you.'
+        );
+    }
+
+    if (!append) {
         els.productGrid.innerHTML = '';
         els.skeletonLoader.hidden = false;
         state.page = 1;
@@ -376,6 +396,7 @@ async function loadSearchResults(query) {
     els.productGrid.innerHTML = '';
     els.skeletonLoader.hidden = false;
     els.productsTitle.textContent = `Results for "${query}"`;
+    setPageMeta(`Search: ${query}`, `Showing results for "${query}" on HybridRec.`);
 
     try {
         const data = await API.get(`/api/search?q=${encodeURIComponent(query)}&limit=40`);
@@ -450,6 +471,7 @@ async function loadRecommendations(title) {
     }
 
     els.recsSection.hidden = false;
+    setPageMeta(`Recommendations for ${title}`, `Products similar to "${title}" using hybrid filtering.`);
     els.recsLoader.hidden = false;
     els.recsStrip.hidden = true;
     els.recsStrip.innerHTML = '';
@@ -683,6 +705,7 @@ function initBackToTop() {
     });
 }
 // ── Init ────────────────────────────────────────────────────────────
+setPageMeta(null, 'A hybrid recommender fusing TF-IDF, SVD and VADER sentiment.');
 async function init() {
     bindEvents();
     initTypeToSearch();
