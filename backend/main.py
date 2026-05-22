@@ -246,7 +246,11 @@ def dashboard():
 
 # ── Search (PostgreSQL FTS) ─────────────────────────────────────────
 @app.get("/api/search")
-def search_items(q: str = "", limit: int = 8):
+def search_items(
+    q: str = "",
+    limit: int = 8,
+    offset: int = 0
+):
 
     mock_items = [
         {"title": "iPhone 15", "rating": 4.8},
@@ -256,7 +260,6 @@ def search_items(q: str = "", limit: int = 8):
         {"title": "Apple Watch Ultra", "rating": 4.7},
     ]
 
-    return mock_items
 
     """
     Search products using PostgreSQL full-text search.
@@ -294,13 +297,11 @@ def search_items(q: str = "", limit: int = 8):
             .execute()
         products = result.data or []
 
-    filtered = [
-        item for item in mock_items
-        if q.lower() in item["title"].lower()
-    ]
-
     return {
-        "items": filtered[:limit]
+    "items": products,
+    "limit": limit,
+    "offset": offset,
+    "count": len(products)
     }
 
 # ── Upload + Import ─────────────────────────────────────────────────
