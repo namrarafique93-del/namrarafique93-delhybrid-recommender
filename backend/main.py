@@ -180,9 +180,20 @@ def _get_cached_response(key: str) -> Any | None:
 
     logger.info("cache_hit", extra={"cache_key": key})
     return value
+    
+def _cleanup_expired_cache():
+    now = time.time()
+    expired_keys = [
+        key for key, (expires_at, _) in _response_cache.items()
+        if expires_at <= now
+    ]
+
+    for key in expired_keys:
+        _response_cache.pop(key, None)
 
 
 def _set_cached_response(key: str, value: Any) -> None:
+    _cleanup_expired_cache()
     _response_cache[key] = (time.time() + CACHE_TTL_SECONDS, value)
 
 
