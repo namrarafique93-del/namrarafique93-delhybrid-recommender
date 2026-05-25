@@ -1897,6 +1897,62 @@ async function loadCategories() {
     }
 }
 
+// Store previous scroll position
+let previousScrollPosition = 0;
+
+// Create back button dynamically
+const backButton = document.createElement("button");
+backButton.id = "backToResultsBtn";
+backButton.innerHTML = "← Back to Results";
+document.body.appendChild(backButton);
+
+// Hide initially
+backButton.style.display = "none";
+
+// Product grid container
+const productGrid = document.querySelector(".product-grid");
+
+// Example function when opening product detail
+function openProductDetail(productId) {
+    // Save current scroll position
+    previousScrollPosition = window.scrollY;
+
+    // Open detail logic
+    const detailView = document.querySelector(".product-detail");
+    detailView.classList.add("active");
+
+    // Show button
+    backButton.style.display = "flex";
+}
+
+// Close detail function
+function closeProductDetail() {
+    const detailView = document.querySelector(".product-detail");
+    detailView.classList.remove("active");
+
+    // Hide button
+    backButton.style.display = "none";
+
+    // Restore scroll position smoothly
+    window.scrollTo({
+        top: previousScrollPosition,
+        behavior: "smooth"
+    });
+}
+
+// Back button click
+backButton.addEventListener("click", () => {
+    closeProductDetail();
+});
+
+// Example existing product card click listeners
+document.querySelectorAll(".product-card").forEach(card => {
+    card.addEventListener("click", () => {
+        const productId = card.dataset.id;
+        openProductDetail(productId);
+    });
+});
+
 document.addEventListener('DOMContentLoaded', init);
 document.addEventListener('DOMContentLoaded', init);
 
