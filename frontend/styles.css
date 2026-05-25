@@ -1752,4 +1752,57 @@ main {
 
 .wishlist-btn:hover::before {
     transform: translateX(100%);
+}/* -- Filter Chips -------------------------------------------------- */
+.filter-chips-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 12px 24px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    position: sticky;
+    top: 60px; /* Below the header */
+    z-index: 90;
+}
+
+.filter-chips-wrapper::-webkit-scrollbar {
+    display: none;
+}
+
+.filter-chips {
+    display: flex;
+    gap: 10px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.chip {
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    user-select: none;
+}
+
+.chip:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.chip.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
 }

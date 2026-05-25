@@ -90,6 +90,7 @@ const state = {
     scrollObserver: null,
     compareList: [],
     heatmapSelected: [],
+    activeChips: new Set(['all']),
     filters: {
         category: '',
         rating: '',
@@ -270,11 +271,27 @@ function applyFilters(products) {
             !state.filters.sentiment ||
             sentiment === state.filters.sentiment;
 
-        return (
-            matchesCategory &&
-            matchesRating &&
-            matchesSentiment
-        );
+        let traditionalMatch = matchesCategory && matchesRating && matchesSentiment;
+
+        // Chip logic
+        if (state.activeChips.has('all')) {
+            return traditionalMatch;
+        }
+
+        let pass = true;
+        
+        // Categories OR logic
+        const activeCategories = Array.from(state.activeChips).filter(c => c.startsWith('category:')).map(c => c.split(':')[1]);
+        if (activeCategories.length > 0) {
+            if (!activeCategories.includes(p.category)) pass = false;
+        }
+
+        // Ratings & Sentiments AND logic
+        if (state.activeChips.has('rating:top-rated') && (p.rating || 0) < 4.0) pass = false;
+        if (state.activeChips.has('sentiment:positive') && sentiment !== 'positive') pass = false;
+        if (state.activeChips.has('special:trending') && (p.rating || 0) < 4.2) pass = false;
+
+        return traditionalMatch && pass;
     });
 }
 
@@ -1868,6 +1885,7 @@ document.head.appendChild(spinStyle);
 async function init() {
     bindEvents();
     initTypeToSearch();
+    initFilterChips();
 
     // Initialize Supabase client from backend config (no hardcoded keys)
     await initSupabase();
@@ -1915,4 +1933,47 @@ function toggleLanguage() {
         document.getElementById('hindi-indicator').style.display = 'none';
         document.getElementById('search-shortcut').style.display = 'block';
     }
+}
+
+// -- Filter Chips ----------------------------------------------------
+function initFilterChips() {
+    const chipsContainer = document.getElementById('filter-chips');
+    if (!chipsContainer) return;
+
+    const chips = chipsContainer.querySelectorAll('.chip');
+    
+    chips.forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            const filterVal = e.target.dataset.filter;
+            
+            if (filterVal === 'all') {
+                state.activeChips.clear();
+                state.activeChips.add('all');
+            } else {
+                state.activeChips.delete('all');
+                
+                if (state.activeChips.has(filterVal)) {
+                    state.activeChips.delete(filterVal);
+                } else {
+                    state.activeChips.add(filterVal);
+                }
+                
+                if (state.activeChips.size === 0) {
+                    state.activeChips.add('all');
+                }
+            }
+            
+            // Update UI
+            chips.forEach(c => {
+                if (state.activeChips.has(c.dataset.filter)) {
+                    c.classList.add('active');
+                } else {
+                    c.classList.remove('active');
+                }
+            });
+            
+            // Re-render
+            renderProducts(state.allProducts, { append: false });
+        });
+    });
 }
