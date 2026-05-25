@@ -141,6 +141,16 @@ const els = {
     weightAlpha: $('weight-alpha'),
     weightBeta: $('weight-beta'),
     weightGamma: $('weight-gamma'),
+    productModal: $('product-modal'),
+    productModalClose: $('product-modal-close'),
+    modalProductTitle: $('modal-product-title'),
+    modalProductCategory: $('modal-product-category'),
+    modalProductRating: $('modal-product-rating'),
+    modalProductSentiment: $('modal-product-sentiment'),
+    modalProductDescription: $('modal-product-description'),
+    modalProductScore: $('modal-product-score'),
+    modalRecommendationsList: $('modal-recommendations-list'),
+  };
     categoryFilter: $('category-filter'),
     ratingFilter: $('rating-filter'),
     sentimentFilter: $('sentiment-filter'),
@@ -1219,7 +1229,76 @@ async function handleWeightChange() {
     } catch {}
 }
 
-function populateCategoryFilter(products) {
+async function openProductModal(product) {
+    els.modalProductTitle.textContent = product.title || 'Untitled';
+
+    els.modalProductCategory.textContent =
+        `Category: ${product.category || 'Unknown'}`;
+
+    els.modalProductRating.textContent =
+        `Rating: ${(product.rating || 0).toFixed(1)}`;
+
+    els.modalProductSentiment.textContent =
+        `Sentiment: ${(product.avg_sentiment || 0).toFixed(2)}`;
+
+    els.modalProductDescription.textContent =
+        product.description || 'No description available.';
+
+    els.modalProductScore.textContent =
+        (product.hybrid_score || 0).toFixed(3);
+
+    els.modalRecommendationsList.innerHTML =
+        '<li>Loading recommendations...</li>';
+
+    els.productModal.hidden = false;
+
+    // Fetch top recommendations
+    try {
+        const data = await API.get(
+            `/api/recommend/${encodeURIComponent(product.title)}?top_n=5`
+        );
+
+        const recs = data.recommendations || [];
+
+        els.modalRecommendationsList.innerHTML = recs.map((r) => `
+            <li>${r.title}</li>
+        `).join('');
+    } catch {
+        els.modalRecommendationsList.innerHTML =
+            '<li>No recommendations available.</li>';
+    }
+}
+
+function closeProductModal() {
+    els.productModal.hidden = true;
+}
+
+// ── API Helpers ─────────────────────────────────────────────────────
+const API = {
+    async get(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+    },
+    async post(url, data) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+    },
+    async put(url, data) {
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+    },
+};
 
     const categories = [...new Set(
         products
@@ -1623,7 +1702,7 @@ function renderProducts(products, append) {
         });
 
         card.addEventListener('click', () => {
-            loadRecommendations(p.title);
+            openProductModal(p);
         });
 
         fragment.appendChild(card);
@@ -1834,6 +1913,23 @@ function bindEvents() {
                 toast('Signed out', 'info');
                 initAuth(); // Re-login as guest
             });
+        }
+    });
+
+    // Product modal close button
+    els.productModalClose.addEventListener('click', closeProductModal);
+
+    // Close on outside click
+    els.productModal.addEventListener('click', (e) => {
+     if (e.target === els.productModal) {
+        closeProductModal();
+        }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !els.productModal.hidden) {
+            closeProductModal();
         }
     });
 
