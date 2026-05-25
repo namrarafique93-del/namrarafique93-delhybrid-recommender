@@ -249,6 +249,13 @@ function sentimentBadge(score) {
 }
 
 function applyFilters(products) {
+    // Pre-calculate chip states to avoid recomputing for every product
+    const hasAll = state.activeChips.has('all');
+    const activeCategories = Array.from(state.activeChips).filter(c => c.startsWith('category:')).map(c => c.split(':')[1]);
+    const hasTopRated = state.activeChips.has('rating:top-rated');
+    const hasPositive = state.activeChips.has('sentiment:positive');
+    const hasTrending = state.activeChips.has('special:trending');
+
     return products.filter((p) => {
 
         const matchesCategory =
@@ -274,22 +281,21 @@ function applyFilters(products) {
         let traditionalMatch = matchesCategory && matchesRating && matchesSentiment;
 
         // Chip logic
-        if (state.activeChips.has('all')) {
+        if (hasAll) {
             return traditionalMatch;
         }
 
         let pass = true;
         
         // Categories OR logic
-        const activeCategories = Array.from(state.activeChips).filter(c => c.startsWith('category:')).map(c => c.split(':')[1]);
         if (activeCategories.length > 0) {
             if (!activeCategories.includes(p.category)) pass = false;
         }
 
         // Ratings & Sentiments AND logic
-        if (state.activeChips.has('rating:top-rated') && (p.rating || 0) < 4.0) pass = false;
-        if (state.activeChips.has('sentiment:positive') && sentiment !== 'positive') pass = false;
-        if (state.activeChips.has('special:trending') && (p.rating || 0) < 4.2) pass = false;
+        if (hasTopRated && (p.rating || 0) < 4.0) pass = false;
+        if (hasPositive && sentiment !== 'positive') pass = false;
+        if (hasTrending && (p.rating || 0) < 4.2) pass = false;
 
         return traditionalMatch && pass;
     });
@@ -1944,7 +1950,7 @@ function initFilterChips() {
     
     chips.forEach(chip => {
         chip.addEventListener('click', (e) => {
-            const filterVal = e.target.dataset.filter;
+            const filterVal = e.currentTarget.dataset.filter;
             
             if (filterVal === 'all') {
                 state.activeChips.clear();
@@ -1973,7 +1979,7 @@ function initFilterChips() {
             });
             
             // Re-render
-            renderProducts(state.allProducts, { append: false });
+            renderProducts(state.allProducts, false);
         });
     });
 }
