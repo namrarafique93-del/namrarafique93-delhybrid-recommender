@@ -9,9 +9,12 @@ import time
 import logging
 import math
 import secrets
+import bleach
 from collections import deque, Counter
 from threading import Lock
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -602,9 +605,15 @@ async def upload_dataset(file: UploadFile = File(...)):
                 title = str(row.get('title', 'Unknown')).strip()
                 if not title or title == 'nan' or title == 'Unknown':
                     continue
+# --- sanitize HTML tags ---
+                title = bleach.clean(title, strip=True)[:500]
+
+                description = str(row.get('description', ''))
+                description = bleach.clean(description, strip=True)[:2000]
+
                 rows.append({
-                    'title': title[:500],
-                    'description': str(row.get('description', ''))[:2000],
+                    'title': title,
+                    'description': description,
                     'category': str(row.get('category', ''))[:200],
                     'rating': round(rating_val, 2),
                     'metadata': {},
@@ -694,11 +703,11 @@ def build_models():
     }
 
 
-# ── Recommendations ───────────────────────────────────────────────────
+# ── Recommendations (with rate limiting) ──────────────────────────────────
 @app.get("/api/recommend")
 @app.get("/api/recommend/{item_title}")
 def get_recommendations(
-    request: Request,
+    request: Request,               # added for rate limiting
     response: Response,
     item_title: Optional[str] = None,
     title: Optional[str] = Query(None),
