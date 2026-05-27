@@ -570,29 +570,20 @@ def dashboard(request: Request):
 
     total_users = 0
     purchase_counts = Counter()
+
     try:
+      user_result = sb.rpc('get_total_users').execute()
+      total_users = user_result.data or 0
 
-        user_rows = sb.table('purchases') \
-          .select('user_id') \
-          .execute().data or []
+      top_products_result = sb.rpc('get_top_product_counts').execute()
 
-        total_users = len({
-          row['user_id']
-          for row in user_rows
-          if row.get('user_id')
-        })
+      purchase_counts = Counter({
+        row['product_id']: row['interaction_count']
+        for row in (top_products_result.data or [])
+      })
 
-        purchase_rows = sb.table('purchases') \
-          .select('product_id') \
-          .limit(50000).execute().data or []
-
-        purchase_counts = Counter(
-          r['product_id']
-          for r in purchase_rows
-          if r.get('product_id') is not None
-        )
     except Exception as e:
-        logger.warning("Dashboard: purchases scan failed: %s", e)
+      logger.warning("Dashboard error: %s", e)
 
     avg_recommendation_score = 0.0
     avg_sentiment_score = 0.0
