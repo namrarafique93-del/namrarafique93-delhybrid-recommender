@@ -518,16 +518,16 @@ class RealtimeConnectionHub:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-      disconnected = []
+        disconnected = []
 
-      for connection in self.active_connections:
-        try:
-          await connection.send_json(message)
-        except Exception:
-          disconnected.append(connection)
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                disconnected.append(connection)
 
-      for connection in disconnected:
-        self.disconnect(connection)
+        for connection in disconnected:
+            self.disconnect(connection)
 
 realtime_hub = RealtimeConnectionHub()
 
