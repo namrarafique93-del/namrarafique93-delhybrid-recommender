@@ -8,9 +8,14 @@ Improvements:
 - Popularity-based cold start fallback
 - Category warm-start for new users
 - Better weight redistribution
+- Optional causal debiasing via Inverse Propensity Scoring (IPS)
 """
-import numpy as np
 import math
+
+import numpy as np
+
+from src.model.causal_config import CausalConfig
+from src.model.causal_model import CausalDebiaser
 
 
 def bayesian_rating(rating, review_count, global_avg=3.0, min_votes=10):
@@ -28,15 +33,24 @@ class HybridRecommender:
     def __init__(self, content_model, collab_model=None, item_df=None,
                  alpha=0.4, beta=0.35, gamma=0.25,
                  normalization='minmax', weight_matrix=None,
-                 fairness_enabled=False, fairness_key='category', fairness_max_share=0.6):
+                 use_causal_debiasing=False, causal_lambda=0.5, causal_clip=5.0,
+                 causal_config=None):
         """
-        content_model:  ContentRecommender instance
-        collab_model:   CollaborativeRecommender instance (optional)
-        item_df:        DataFrame with 'avg_sentiment', 'rating', 'review_count' columns
-        alpha:          weight for content-based score
-        beta:           weight for collaborative score
-        gamma:          weight for sentiment score
-        model_kwargs:   Dict containing deep model hyperparameters (e.g., {'n_factors': 50, 'use_implicit': True})
+        content_model:        ContentRecommender instance
+        collab_model:         CollaborativeRecommender instance (optional)
+        item_df:              DataFrame with 'avg_sentiment', 'rating', 'review_count' columns
+        alpha:                weight for content-based score
+        beta:                 weight for collaborative score
+        gamma:                weight for sentiment score
+        use_causal_debiasing: Enable IPS-based causal debiasing on the final hybrid score.
+                              When True, a CausalDebiaser is built from item_df and applied
+                              after the weighted blend, before final ranking.
+        causal_lambda:        Blend factor λ for causal correction (0.0–1.0).
+                              0.0 = no debiasing, 1.0 = full IPS reweighting. Default 0.5.
+        causal_clip:          Max IPS weight cap to prevent variance explosion. Default 5.0.
+        causal_config:        Optional CausalConfig instance. When provided, takes precedence
+                              over use_causal_debiasing / causal_lambda / causal_clip.
+                              Use this for structured configuration management.
         """
         self.content_model = content_model
         self.collab_model = collab_model
@@ -64,13 +78,28 @@ class HybridRecommender:
         # dynamic weighting matrix (dict of context -> (alpha,beta,gamma))
         self.weight_matrix = weight_matrix or {}
 
-        # Optional fairness-aware re-ranking (disabled by default to preserve legacy ordering)
-        self.fairness_enabled = bool(fairness_enabled)
-        self.fairness_key = fairness_key or 'category'
-        try:
-            self.fairness_max_share = float(fairness_max_share)
-        except Exception:
-            self.fairness_max_share = 1.0
+        # Causal debiasing — prefer CausalConfig when provided; fall back to raw params.
+        # This keeps the old float-based API fully working while adding structured config.
+        if causal_config is not None:
+            # CausalConfig path: validate once, then build debiaser if enabled
+            causal_config.validate()
+            self.use_causal_debiasing = causal_config.enabled
+            self._debiaser: CausalDebiaser | None = (
+                CausalDebiaser.from_config(item_df, causal_config)
+                if causal_config.enabled and item_df is not None
+                else None
+            )
+            # Store config for introspection (e.g. API response, Streamlit UI)
+            self._causal_config: CausalConfig | None = causal_config
+        else:
+            # Legacy raw-param path — unchanged behaviour
+            self.use_causal_debiasing = use_causal_debiasing
+            self._debiaser = (
+                CausalDebiaser(item_df, blend_lambda=causal_lambda, clip_max=causal_clip)
+                if use_causal_debiasing and item_df is not None
+                else None
+            )
+            self._causal_config = None
 
         # Build sentiment + rating lookups
         self._sentiment_map = {}
@@ -113,7 +142,6 @@ class HybridRecommender:
 
     def set_weights(self, alpha, beta, gamma):
         """Update the scoring weights. Normalized to sum to 1."""
-        import math
         if any(math.isnan(w) for w in [alpha, beta, gamma]):
             raise ValueError("Weights must be finite numbers")
         if any(w < 0 for w in [alpha, beta, gamma]):
@@ -406,6 +434,17 @@ class HybridRecommender:
         if not results:
             return self.get_popular_fallback_items(top_n=top_n, exclude_title=title)
 
+        # 7. Optional causal debiasing — applied after sorting so the debiaser
+        #    sees the full candidate set for proper batch-level IPS normalization,
+        #    then we re-sort by the updated causal score.
+        if self.use_causal_debiasing and self._debiaser is not None:
+            score_key = (
+                self._causal_config.score_key
+                if self._causal_config is not None
+                else 'hybrid_score'
+            )
+            results = self._debiaser.debias_batch(results, score_key=score_key)
+            results.sort(key=lambda x: x[score_key], reverse=True)
         apply_fairness = self.fairness_enabled if fairness is None else bool(fairness)
         if apply_fairness:
             key = fairness_key or self.fairness_key
@@ -428,7 +467,7 @@ class HybridRecommender:
         results = []
         for r in collab_recs[:top_n]:
             item_title = r['title']
-            
+
             row_data = self.content_model.df[self.content_model.df['title'] == item_title]
             category = self._category_map.get(item_title, '')
             description = ''
@@ -440,7 +479,7 @@ class HybridRecommender:
 
             hybrid_score = r.get('predicted_score', 0.0)
             rating = self._rating_map.get(item_title, 0.0)
-            
+
             result = {
                 'title': item_title,
                 'content_score': 0.0,
@@ -453,7 +492,18 @@ class HybridRecommender:
                 'top_reviews': top_reviews,
             }
             results.append(result)
-            
+
+        # Apply causal debiasing on the user path as well, consistent with
+        # the item-based recommend() path.
+        if self.use_causal_debiasing and self._debiaser is not None:
+            score_key = (
+                self._causal_config.score_key
+                if self._causal_config is not None
+                else 'hybrid_score'
+            )
+            results = self._debiaser.debias_batch(results, score_key=score_key)
+            results.sort(key=lambda x: x[score_key], reverse=True)
+
         return results
 
     def _build_explanation(
